@@ -1,0 +1,18 @@
+name: CodeTitan PR Verification
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Noa-Lia/codetitan.dev@v1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: codetitan-report
+          path: codetitan-report.json
