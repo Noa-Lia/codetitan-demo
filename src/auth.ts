@@ -1,15 +1,17 @@
 /**
- * Auth helpers — contains a deliberately weak pattern for demo purposes.
+ * Auth helpers — fixed version using environment variable for the secret.
  */
 import jwt from 'jsonwebtoken';
 
-// FINDING: hardcoded secret
-const JWT_SECRET = 'super-secret-key-1234';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required');
+}
 
 export function signToken(userId: string): string {
-  return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '1d' });
+  return jwt.sign({ userId }, JWT_SECRET as string, { expiresIn: '1d' });
 }
 
 export function verifyToken(token: string): { userId: string } {
-  return jwt.verify(token, JWT_SECRET) as { userId: string };
+  return jwt.verify(token, JWT_SECRET as string) as { userId: string };
 }
