@@ -1,23 +1,41 @@
 /**
- * Safe version of app.ts — this is what CodeTitan's fixes look like after remediation.
- * Used in a PR to show a PASS result.
+ * Safe version of app.ts — remediated + infrastructure-hardened.
+ * Passes CodeTitan gate: helmet() clears HELMET_MISSING, requireAuth clears MISSING_AUTH_MIDDLEWARE.
  */
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
+import helmet from 'helmet';
 import { Pool } from 'pg';
+import { verifyToken } from './auth';
 
 const app = express();
+app.use(helmet());
 app.use(express.json());
 
 const db = new Pool({ connectionString: process.env.DATABASE_URL });
 
-// FIXED: parameterized query — no SQL injection risk
-app.get('/users', async (req: Request, res: Response) => {
+function requireAuth(req: Request, res: Response, next: NextFunction): void {
+  const auth = req.headers.authorization;
+  if (!auth?.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  try {
+    verifyToken(auth.slice(7));
+    next();
+  } catch {
+    res.status(401).json({ error: 'Invalid token' });
+  }
+}
+
+// FIXED: parameterized query — no SQL injection
+// FIXED: requireAuth guard — no unauthenticated access to /users
+app.get('/users', requireAuth, async (req: Request, res: Response) => {
   const role = req.query.role as string;
   const result = await db.query('SELECT * FROM users WHERE role = $1', [role]);
   res.json(result.rows);
 });
 
-// FIXED: removed exec — validate and respond with an error instead
+// FIXED: no exec — validate input and respond
 app.post('/lint', (req: Request, res: Response) => {
   const file = req.body.file as string;
   if (!file || !/^[\w\-./]+\.ts$/.test(file)) {
@@ -27,7 +45,7 @@ app.post('/lint', (req: Request, res: Response) => {
   res.json({ message: 'Lint queued', file });
 });
 
-// FIXED: textContent used instead of innerHTML
+// FIXED: textContent instead of innerHTML
 app.get('/render', (req: Request, res: Response) => {
   const name = req.query.name as string;
   const safe = String(name).replace(/[<>"']/g, '');
